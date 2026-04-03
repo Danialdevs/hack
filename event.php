@@ -11,6 +11,9 @@ $team_id = $_GET['team_id'] ?? null;
 
 <div class="bg-white w-full mx-auto mt-6 p-6 rounded-lg shadow text-center" style="max-width:95vw">
     <h3 class="text-xl font-semibold"><?= $event->title ?></h3>
+    <?php if (!empty($event->description)): ?>
+        <p class="text-gray-600 mt-2 text-sm"><?= nl2br(htmlspecialchars($event->description)) ?></p>
+    <?php endif; ?>
     <?php if ($event->show_registration === null || (int)$event->show_registration): ?>
     <a href="register.php?event_id=<?= $id ?>" class="inline-block mt-3 mb-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition text-sm">
         Зарегистрировать команду

@@ -36,6 +36,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$error) {
         $event = R::dispense('events');
         $event->title = $title;
+        $event->description = trim($_POST['description'] ?? '');
         $event->task_start = $task_start;
         $event->task = $taskFilename;
         $event->show_leaderboard = $show_leaderboard;
@@ -92,6 +93,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div>
                 <label class="block text-gray-700 font-bold mb-2">Название</label>
                 <input type="text" name="title" class="w-full p-2 border rounded" required>
+            </div>
+
+            <div>
+                <label class="block text-gray-700 font-bold mb-2">Описание</label>
+                <textarea name="description" rows="3" class="w-full p-2 border rounded" placeholder="Краткое описание мероприятия..."></textarea>
             </div>
 
             <div>

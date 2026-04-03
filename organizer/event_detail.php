@@ -20,6 +20,7 @@ $success = '';
 
 // --- SETTINGS HANDLER ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_settings'])) {
+    $event->description = trim($_POST['description'] ?? '');
     $event->show_leaderboard = isset($_POST['show_leaderboard']) ? 1 : 0;
     $event->show_registration = isset($_POST['show_registration']) ? 1 : 0;
     $event->task_start = $_POST['task_start'] ?? '';
@@ -165,6 +166,10 @@ $statusBadge = match($event->status) {
         <!-- Settings -->
         <form method="POST" class="border-t pt-4">
             <h4 class="font-semibold text-gray-700 mb-3">Настройки</h4>
+            <div class="mb-4">
+                <label class="block text-sm text-gray-600 mb-1">Описание мероприятия</label>
+                <textarea name="description" rows="3" class="w-full p-2 border rounded text-sm" placeholder="Краткое описание мероприятия..."><?= htmlspecialchars($event->description ?? '') ?></textarea>
+            </div>
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
                 <div>
                     <label class="block text-sm text-gray-600 mb-1">Дата начала задач</label>
