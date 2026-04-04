@@ -11,6 +11,7 @@ $id = $_GET['id'] ?? 0;
 $event = R::load('events', $id);
 $teams = R::findAll('teams', 'event_id = ?', [$id]);
 $criteria = R::findAll('criteria', 'event_id = ? ', [$id]);
+$maxScore = (int)($event->max_score ?: 10);
 
 $juryId = $_SESSION['user_id'];
 
@@ -34,6 +35,64 @@ if ($_SESSION['user_role'] === 'jury') {
         </div>
     </div>
 
+    <?php
+    $teamData = [];
+    foreach ($teams as $team) {
+        $globalScore = (int) R::getCell("SELECT SUM(score) FROM scores WHERE team_id = ?", [$team->id]);
+        $team->global_score = $globalScore;
+        $localScore = (int) R::getCell("SELECT SUM(score) FROM scores WHERE team_id = ? AND jury_id = ?", [$team->id, $juryId]);
+        $team->local_score = $localScore;
+        $teamData[] = $team;
+    }
+    usort($teamData, function($a, $b) {
+        return $b->global_score <=> $a->global_score;
+    });
+    ?>
+
+    <!-- MOBILE: team selector + cards -->
+    <div class="lg:hidden">
+        <select id="mobile-team-select" class="w-full p-3 border border-gray-300 rounded-lg text-gray-700 bg-white text-base mb-4">
+            <option value="">Выберите команду</option>
+            <?php foreach ($teamData as $team): ?>
+                <option value="<?= $team->id ?>"><?= htmlspecialchars($team->name) ?></option>
+            <?php endforeach; ?>
+        </select>
+
+        <?php foreach ($teamData as $team): ?>
+        <div class="mobile-team-card hidden" data-mobile-team="<?= $team->id ?>">
+            <div class="bg-white rounded-lg shadow-md overflow-hidden mb-4">
+                <div class="bg-gray-800 text-white px-4 py-3 flex justify-between items-center">
+                    <span class="font-bold text-base"><?= htmlspecialchars($team->name) ?></span>
+                    <div class="flex gap-3 text-sm">
+                        <span>Вы: <strong class="mobile-total-score" data-team-id="<?= $team->id ?>"><?= $team->local_score ?></strong></span>
+                        <span>Общий: <strong class="text-blue-300 mobile-global-score" data-team-id="<?= $team->id ?>"><?= $team->global_score ?></strong></span>
+                    </div>
+                </div>
+                <div class="p-4 space-y-3">
+                    <?php foreach ($criteria as $criterion):
+                        $existingScore = R::findOne('scores', 'team_id = ? AND criteria_id = ? AND jury_id = ?', [$team->id, $criterion->id, $juryId]);
+                        $scoreValue = $existingScore ? $existingScore->score : 0;
+                    ?>
+                    <div class="flex items-center justify-between">
+                        <label class="text-gray-700 text-sm font-medium flex-1"><?= htmlspecialchars($criterion->name) ?></label>
+                        <div class="flex items-center gap-2">
+                            <input type="range" min="0" max="<?= $maxScore ?>" value="<?= $scoreValue ?>"
+                                   class="score-input score-range w-28 accent-blue-600"
+                                   data-team-id="<?= $team->id ?>"
+                                   data-criteria-id="<?= $criterion->id ?>"
+                                   data-jury-id="<?= $juryId ?>">
+                            <span class="score-range-value text-lg font-bold text-blue-600 w-8 text-center"><?= $scoreValue ?></span>
+                        </div>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+        </div>
+        <?php endforeach; ?>
+    </div>
+
+    <!-- DESKTOP: table -->
+    <div class="hidden lg:block">
     <div class="overflow-x-auto">
     <table class="min-w-full bg-white shadow-lg rounded-lg overflow-hidden">
         <thead>
@@ -48,39 +107,17 @@ if ($_SESSION['user_role'] === 'jury') {
         </tr>
         </thead>
         <tbody>
-        <?php
-        $teamData = [];
-        foreach ($teams as $team) {
-            $globalScore = (int) R::getCell("SELECT SUM(score) FROM scores WHERE team_id = ?", [$team->id]);
-            $team->global_score = $globalScore;
-            $localScore = (int) R::getCell("SELECT SUM(score) FROM scores WHERE team_id = ? AND jury_id = ?", [$team->id, $juryId]);
-            $team->local_score = $localScore;
-            $teamData[] = $team;
-        }
-
-        usort($teamData, function($a, $b) {
-            return $b->global_score <=> $a->global_score;
-        });
-
-        $rank = 0;
-        foreach ($teamData as $team):
-            $rank++;
-        ?>
+        <?php $rank = 0; foreach ($teamData as $team): $rank++; ?>
             <tr class="hover:bg-gray-100" data-team-id="<?= $team->id ?>">
                 <td class="py-3 px-6 border-b font-bold"><?= $rank ?></td>
                 <td class="py-3 px-6 border-b"><?= htmlspecialchars($team->name) ?></td>
-                <?php foreach ($criteria as $criterion): ?>
-                    <?php
-                    $existingScore = R::findOne(
-                        'scores',
-                        'team_id = ? AND criteria_id = ? AND jury_id = ?',
-                        [$team->id, $criterion->id, $juryId]
-                    );
+                <?php foreach ($criteria as $criterion):
+                    $existingScore = R::findOne('scores', 'team_id = ? AND criteria_id = ? AND jury_id = ?', [$team->id, $criterion->id, $juryId]);
                     $scoreValue = $existingScore ? $existingScore->score : 0;
-                    ?>
+                ?>
                     <td class="py-3 px-6 border-b">
                         <input type="number"
-                               min="0" max="10"
+                               min="0" max="<?= $maxScore ?>"
                                value="<?= $scoreValue ?>"
                                class="score-input border rounded w-16 text-center"
                                data-team-id="<?= $team->id ?>"
@@ -98,6 +135,7 @@ if ($_SESSION['user_role'] === 'jury') {
         <?php endforeach; ?>
         </tbody>
     </table>
+    </div>
     </div>
 </div>
 
@@ -279,14 +317,39 @@ if ($_SESSION['user_role'] === 'jury') {
         const inputs = document.querySelectorAll('.score-input');
         const debounceTimers = {};
 
+        // Mobile: team selector
+        const mobileSelect = document.getElementById('mobile-team-select');
+        if (mobileSelect) {
+            mobileSelect.addEventListener('change', function () {
+                document.querySelectorAll('.mobile-team-card').forEach(c => c.classList.add('hidden'));
+                if (this.value) {
+                    const card = document.querySelector(`.mobile-team-card[data-mobile-team="${this.value}"]`);
+                    if (card) card.classList.remove('hidden');
+                }
+            });
+        }
+
         inputs.forEach(input => {
-            const statusIndicator = document.createElement('span');
-            statusIndicator.className = 'text-xs ml-1 font-semibold';
-            input.parentNode.appendChild(statusIndicator);
+            // For range inputs, sync the displayed value
+            if (input.classList.contains('score-range')) {
+                const valueSpan = input.parentNode.querySelector('.score-range-value');
+                input.addEventListener('input', function () {
+                    if (valueSpan) valueSpan.textContent = this.value;
+                });
+            }
+
+            // For number inputs in the table, add status indicator
+            if (input.type === 'number') {
+                const statusIndicator = document.createElement('span');
+                statusIndicator.className = 'text-xs ml-1 font-semibold';
+                input.parentNode.appendChild(statusIndicator);
+                input._statusIndicator = statusIndicator;
+            }
 
             input.addEventListener('input', function () {
                 let value = parseInt(this.value);
-                if (value > 10) { this.value = 10; value = 10; }
+                const maxScore = parseInt(this.max) || 10;
+                if (value > maxScore) { this.value = maxScore; value = maxScore; }
                 else if (value < 0) { this.value = 0; value = 0; }
 
                 const teamId = this.dataset.teamId;
@@ -295,21 +358,26 @@ if ($_SESSION['user_role'] === 'jury') {
                 const score = this.value;
                 const key = `${teamId}-${criteriaId}`;
 
-                statusIndicator.textContent = '...';
-                statusIndicator.className = 'text-xs ml-1 font-semibold text-gray-500';
                 updateTotalScore(teamId);
+                updateMobileTotalScore(teamId);
 
                 if (debounceTimers[key]) clearTimeout(debounceTimers[key]);
 
                 debounceTimers[key] = setTimeout(() => {
-                    saveScore(teamId, criteriaId, juryId, score, statusIndicator);
+                    saveScore(teamId, criteriaId, juryId, score, this);
                 }, 800);
             });
         });
 
-        function saveScore(teamId, criteriaId, juryId, score, statusIndicator) {
-            statusIndicator.textContent = 'Сохр...';
-            statusIndicator.className = 'text-xs ml-1 font-semibold text-orange-500';
+        function saveScore(teamId, criteriaId, juryId, score, inputEl) {
+            // Sync both mobile and desktop inputs for the same team+criteria
+            document.querySelectorAll(`input[data-team-id="${teamId}"][data-criteria-id="${criteriaId}"]`).forEach(el => {
+                if (el !== inputEl) {
+                    el.value = score;
+                    const valSpan = el.parentNode.querySelector('.score-range-value');
+                    if (valSpan) valSpan.textContent = score;
+                }
+            });
 
             fetch('save_score.php', {
                 method: 'POST',
@@ -319,30 +387,36 @@ if ($_SESSION['user_role'] === 'jury') {
             .then(response => response.json())
             .then(data => {
                 if (data.status === 'success') {
-                    statusIndicator.textContent = 'OK';
-                    statusIndicator.className = 'text-xs ml-1 font-semibold text-green-500';
-                    setTimeout(() => {
-                        if (statusIndicator.textContent === 'OK') statusIndicator.textContent = '';
-                    }, 2000);
-                } else {
-                    statusIndicator.textContent = 'Ошибка';
-                    statusIndicator.className = 'text-xs ml-1 font-semibold text-red-500';
+                    if (inputEl._statusIndicator) {
+                        inputEl._statusIndicator.textContent = 'OK';
+                        inputEl._statusIndicator.className = 'text-xs ml-1 font-semibold text-green-500';
+                        setTimeout(() => {
+                            if (inputEl._statusIndicator.textContent === 'OK') inputEl._statusIndicator.textContent = '';
+                        }, 2000);
+                    }
                 }
             })
-            .catch(error => {
-                console.error('Error:', error);
-                statusIndicator.textContent = 'Err';
-                statusIndicator.className = 'text-xs ml-1 font-semibold text-red-500';
-            });
+            .catch(error => console.error('Error:', error));
         }
 
         function updateTotalScore(teamId) {
             let total = 0;
-            document.querySelectorAll(`input[data-team-id='${teamId}']`).forEach(input => {
+            document.querySelectorAll(`tr[data-team-id='${teamId}'] input[data-team-id='${teamId}']`).forEach(input => {
                 total += parseInt(input.value) || 0;
             });
             const totalCell = document.querySelector(`tr[data-team-id='${teamId}'] .total-score`);
             if (totalCell) totalCell.textContent = total;
+        }
+
+        function updateMobileTotalScore(teamId) {
+            let total = 0;
+            const card = document.querySelector(`.mobile-team-card[data-mobile-team="${teamId}"]`);
+            if (!card) return;
+            card.querySelectorAll(`input[data-team-id="${teamId}"]`).forEach(input => {
+                total += parseInt(input.value) || 0;
+            });
+            const el = card.querySelector(`.mobile-total-score[data-team-id="${teamId}"]`);
+            if (el) el.textContent = total;
         }
 
         setInterval(function() {
@@ -351,14 +425,12 @@ if ($_SESSION['user_role'] === 'jury') {
                 .then(response => response.json())
                 .then(data => {
                     data.forEach(item => {
+                        // Desktop
                         const globalCell = document.querySelector(`tr[data-team-id='${item.team_id}'] .global-score`);
-                        if (globalCell) {
-                            if (globalCell.textContent != item.global_score) {
-                                globalCell.style.color = '#2563eb';
-                                setTimeout(() => globalCell.style.color = '', 500);
-                            }
-                            globalCell.textContent = item.global_score;
-                        }
+                        if (globalCell) globalCell.textContent = item.global_score;
+                        // Mobile
+                        const mobileCell = document.querySelector(`.mobile-global-score[data-team-id='${item.team_id}']`);
+                        if (mobileCell) mobileCell.textContent = item.global_score;
                     });
                 })
                 .catch(error => console.error('Error fetching global scores:', error));

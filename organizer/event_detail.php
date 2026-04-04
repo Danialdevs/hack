@@ -21,6 +21,7 @@ $success = '';
 // --- SETTINGS HANDLER ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_settings'])) {
     $event->description = trim($_POST['description'] ?? '');
+    $event->max_score = max(1, (int)($_POST['max_score'] ?? 10));
     $event->show_leaderboard = isset($_POST['show_leaderboard']) ? 1 : 0;
     $event->show_registration = isset($_POST['show_registration']) ? 1 : 0;
     $event->task_start = $_POST['task_start'] ?? '';
@@ -158,6 +159,7 @@ $statusBadge = match($event->status) {
                 <span class="inline-block text-xs px-2 py-1 rounded mt-2 <?= $statusBadge ?>"><?= htmlspecialchars($event->status ?? 'active') ?></span>
             </div>
             <div class="flex gap-2">
+                <a href="/organizer/reg_list.php?event=<?= $id ?>" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded">Лист участников</a>
                 <a href="/organizer/certificates.php?event=<?= $id ?>" class="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded">Сертификаты</a>
                 <a href="/organizer/events.php" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded">Назад к списку</a>
             </div>
@@ -171,6 +173,10 @@ $statusBadge = match($event->status) {
                 <textarea name="description" rows="3" class="w-full p-2 border rounded text-sm" placeholder="Краткое описание мероприятия..."><?= htmlspecialchars($event->description ?? '') ?></textarea>
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
+                <div>
+                    <label class="block text-sm text-gray-600 mb-1">Макс. балл за критерий</label>
+                    <input type="number" name="max_score" min="1" value="<?= htmlspecialchars($event->max_score ?: 10) ?>" class="w-full p-2 border rounded text-sm">
+                </div>
                 <div>
                     <label class="block text-sm text-gray-600 mb-1">Дата начала задач</label>
                     <input type="datetime-local" name="task_start" value="<?= htmlspecialchars($event->task_start) ?>" class="w-full p-2 border rounded text-sm">

@@ -59,9 +59,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_certificates
     } else {
         $teamUsers = R::findAll('teamuser', 'event_id = ?', [$eventId]);
         $created = 0;
+        $updated = 0;
         foreach ($teamUsers as $tu) {
             $exists = R::findOne('certificates', 'team_user_id = ? AND type = ?', [$tu->id, 'team_user']);
-            if (!$exists) {
+            if ($exists) {
+                $exists->template_id = $template->id;
+                $exists->option_text = $optionText;
+                R::store($exists);
+                $updated++;
+            } else {
                 $cert = R::dispense('certificates');
                 $cert->template_id = $template->id;
                 $cert->team_id = $tu->team_id;
@@ -73,7 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_certificates
                 $created++;
             }
         }
-        $success = "Сгенерировано сертификатов: $created (пропущено дубликатов: " . (count($teamUsers) - $created) . ")";
+        $success = "Сгенерировано сертификатов: $created, обновлено: $updated";
     }
 }
 
@@ -88,9 +94,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_diplomas']))
     } else {
         $teams = R::findAll('teams', 'event_id = ?', [$eventId]);
         $created = 0;
+        $updated = 0;
         foreach ($teams as $t) {
             $exists = R::findOne('certificates', 'team_id = ? AND type = ?', [$t->id, 'team']);
-            if (!$exists) {
+            if ($exists) {
+                $exists->template_id = $template->id;
+                $exists->option_text = $optionText;
+                R::store($exists);
+                $updated++;
+            } else {
                 $cert = R::dispense('certificates');
                 $cert->template_id = $template->id;
                 $cert->team_id = $t->id;
@@ -102,7 +114,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_diplomas']))
                 $created++;
             }
         }
-        $success = "Сгенерировано дипломов: $created (пропущено дубликатов: " . (count($teams) - $created) . ")";
+        $success = "Сгенерировано дипломов: $created, обновлено: $updated";
     }
 }
 

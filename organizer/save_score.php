@@ -7,9 +7,14 @@ $score = $_POST['score'] ?? null;
 $jury_id = $_SESSION["user_id"];
 
 if ($teamId && $criteriaId !== null && $score !== null) {
-    if ($score < 0 || $score > 10) {
+    // Get max score from event
+    $team = R::load('teams', $teamId);
+    $event = $team->id ? R::load('events', $team->event_id) : null;
+    $maxScore = ($event && $event->max_score) ? (int)$event->max_score : 10;
+
+    if ($score < 0 || $score > $maxScore) {
         http_response_code(400);
-        echo json_encode(['status' => 'error', 'message' => 'Score must be between 0 and 10']);
+        echo json_encode(['status' => 'error', 'message' => "Score must be between 0 and $maxScore"]);
         exit;
     }
 
