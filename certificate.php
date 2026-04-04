@@ -81,6 +81,8 @@ $placeholders += [
 foreach ($elements as $element) {
     if (isset($element['text'])) {
         $text = str_replace(array_keys($placeholders), array_values($placeholders), $element['text']);
+        $text = trim($text);
+        if ($text === '') continue;
         $font = './storage/' . $element['font'];
         if (!file_exists($font)) {
             die("Ошибка: Файл шрифта не найден.");
