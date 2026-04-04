@@ -63,19 +63,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_certificates
         $created = 0;
         $updated = 0;
         foreach ($teamUsers as $tu) {
-            $exists = R::findOne('certificates', 'team_user_id = ? AND type = ?', [$tu->id, 'team_user']);
+            $exists = R::getRow('SELECT id FROM certificates WHERE team_user_id = ? AND type = ?', [$tu->id, 'team_user']);
             if ($exists) {
-                R::exec('UPDATE certificates SET template_id = ?, option_text = ? WHERE id = ?', [$template->id, $optionText, $exists->id]);
+                R::exec('UPDATE certificates SET template_id = ?, option_text = ? WHERE id = ?', [$template->id, $optionText, $exists['id']]);
                 $updated++;
             } else {
-                $cert = R::dispense('certificates');
-                $cert->template_id = $template->id;
-                $cert->team_id = $tu->team_id;
-                $cert->team_user_id = $tu->id;
-                $cert->type = 'team_user';
-                $cert->option_text = $optionText;
-                $cert->code = 'CERT-' . strtoupper(substr(md5(uniqid(mt_rand(), true)), 0, 6));
-                R::store($cert);
+                $code = 'CERT-' . strtoupper(substr(md5(uniqid(mt_rand(), true)), 0, 6));
+                R::exec('INSERT INTO certificates (template_id, team_id, team_user_id, type, option_text, code) VALUES (?, ?, ?, ?, ?, ?)',
+                    [$template->id, $tu->team_id, $tu->id, 'team_user', $optionText, $code]);
                 $created++;
             }
         }
@@ -96,19 +91,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_diplomas']))
         $created = 0;
         $updated = 0;
         foreach ($teams as $t) {
-            $exists = R::findOne('certificates', 'team_id = ? AND type = ?', [$t->id, 'team']);
+            $exists = R::getRow('SELECT id FROM certificates WHERE team_id = ? AND type = ?', [$t->id, 'team']);
             if ($exists) {
-                R::exec('UPDATE certificates SET template_id = ?, option_text = ? WHERE id = ?', [$template->id, $optionText, $exists->id]);
+                R::exec('UPDATE certificates SET template_id = ?, option_text = ? WHERE id = ?', [$template->id, $optionText, $exists['id']]);
                 $updated++;
             } else {
-                $cert = R::dispense('certificates');
-                $cert->template_id = $template->id;
-                $cert->team_id = $t->id;
-                $cert->team_user_id = 0;
-                $cert->type = 'team';
-                $cert->option_text = $optionText;
-                $cert->code = 'DIPL-' . strtoupper(substr(md5(uniqid(mt_rand(), true)), 0, 6));
-                R::store($cert);
+                $code = 'DIPL-' . strtoupper(substr(md5(uniqid(mt_rand(), true)), 0, 6));
+                R::exec('INSERT INTO certificates (template_id, team_id, team_user_id, type, option_text, code) VALUES (?, ?, ?, ?, ?, ?)',
+                    [$template->id, $t->id, 0, 'team', $optionText, $code]);
                 $created++;
             }
         }
