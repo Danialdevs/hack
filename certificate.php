@@ -1,4 +1,7 @@
 <?php
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+ob_start();
 include 'includes/db.php';
 
 $id = $_GET["id"] ?? null;
@@ -132,7 +135,7 @@ $qrUrl = "https://api.qrserver.com/v1/create-qr-code/?size={$qrSize}x{$qrSize}&d
 
 
 // Выводим изображение
-ob_clean();
+ob_end_clean();
 header('Content-Type: image/jpeg');
 header('Content-Disposition: attachment; filename="certificate.jpg"');
 
