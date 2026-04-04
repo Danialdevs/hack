@@ -59,6 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_certificates
     if (!$template) {
         $error = 'Сначала создайте шаблон сертификата для этого мероприятия.';
     } else {
+        R::exec('SET FOREIGN_KEY_CHECKS = 0');
         $teamUsers = R::findAll('teamuser', 'event_id = ?', [$eventId]);
         $created = 0;
         $updated = 0;
@@ -74,6 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_certificates
                 $created++;
             }
         }
+        R::exec('SET FOREIGN_KEY_CHECKS = 1');
         $success = "Сгенерировано сертификатов: $created, обновлено: $updated";
     }
 }
@@ -87,6 +89,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_diplomas']))
     if (!$template) {
         $error = 'Сначала создайте шаблон диплома для этого мероприятия.';
     } else {
+        R::exec('SET FOREIGN_KEY_CHECKS = 0');
         $teams = R::findAll('teams', 'event_id = ?', [$eventId]);
         $created = 0;
         $updated = 0;
@@ -102,6 +105,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_diplomas']))
                 $created++;
             }
         }
+        R::exec('SET FOREIGN_KEY_CHECKS = 1');
         $success = "Сгенерировано дипломов: $created, обновлено: $updated";
     }
 }
