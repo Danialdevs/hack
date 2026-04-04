@@ -65,9 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_certificates
         foreach ($teamUsers as $tu) {
             $exists = R::findOne('certificates', 'team_user_id = ? AND type = ?', [$tu->id, 'team_user']);
             if ($exists) {
-                $exists->template_id = $template->id;
-                $exists->option_text = $optionText;
-                R::store($exists);
+                R::exec('UPDATE certificates SET template_id = ?, option_text = ? WHERE id = ?', [$template->id, $optionText, $exists->id]);
                 $updated++;
             } else {
                 $cert = R::dispense('certificates');
@@ -100,9 +98,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_diplomas']))
         foreach ($teams as $t) {
             $exists = R::findOne('certificates', 'team_id = ? AND type = ?', [$t->id, 'team']);
             if ($exists) {
-                $exists->template_id = $template->id;
-                $exists->option_text = $optionText;
-                R::store($exists);
+                R::exec('UPDATE certificates SET template_id = ?, option_text = ? WHERE id = ?', [$template->id, $optionText, $exists->id]);
                 $updated++;
             } else {
                 $cert = R::dispense('certificates');
