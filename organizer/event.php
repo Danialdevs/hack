@@ -327,6 +327,7 @@ if ($_SESSION['user_role'] === 'jury') {
     <div class="bg-white rounded-lg shadow-lg p-6">
         <p class="text-sm text-gray-500 mb-4">Выберите команды для 1, 2 и 3 места. Оценки жюри сохранятся — админ подкорректирует свои баллы так, чтобы итоги были примерно одинаковые, но порядок стал правильным.</p>
         <div id="places-message" class="hidden mb-4 p-3 rounded text-sm"></div>
+        <div id="places-result" class="hidden mb-4"></div>
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
             <div>
                 <label class="block text-sm font-semibold text-yellow-600 mb-1">🥇 1 место</label>
@@ -494,10 +495,11 @@ if ($_SESSION['user_role'] === 'jury') {
                     return;
                 }
 
-                if (!confirm('Ваши (админские) оценки будут пересчитаны для нужного порядка мест. Оценки жюри останутся. Продолжить?')) return;
+                if (!confirm('Оценки жюри останутся. Админские баллы будут подкорректированы для нужного порядка. Продолжить?')) return;
 
                 applyBtn.disabled = true;
                 applyBtn.textContent = 'Сохранение...';
+                const resultDiv = document.getElementById('places-result');
 
                 fetch('set_places.php', {
                     method: 'POST',
@@ -508,9 +510,33 @@ if ($_SESSION['user_role'] === 'jury') {
                 .then(data => {
                     if (data.status === 'success') {
                         msg.className = 'mb-4 p-3 rounded text-sm bg-green-100 text-green-700';
-                        msg.textContent = 'Места назначены! Страница перезагрузится...';
+                        msg.textContent = 'Места назначены! Страница перезагрузится через 3 сек...';
                         msg.classList.remove('hidden');
-                        setTimeout(() => location.reload(), 1000);
+
+                        // Показываем таблицу результатов
+                        let html = '<table class="min-w-full text-sm bg-white rounded shadow overflow-hidden">';
+                        html += '<thead><tr class="bg-gray-800 text-white">';
+                        html += '<th class="py-2 px-3 text-left">#</th>';
+                        html += '<th class="py-2 px-3 text-left">Команда</th>';
+                        html += '<th class="py-2 px-3 text-center">Жюри</th>';
+                        html += '<th class="py-2 px-3 text-center">Админ</th>';
+                        html += '<th class="py-2 px-3 text-center">Итого</th>';
+                        html += '</tr></thead><tbody>';
+                        data.results.forEach((r, i) => {
+                            const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '';
+                            html += `<tr class="border-b ${i < 3 ? 'bg-yellow-50 font-semibold' : ''}">`;
+                            html += `<td class="py-2 px-3">${medal} ${i + 1}</td>`;
+                            html += `<td class="py-2 px-3">${r.name}</td>`;
+                            html += `<td class="py-2 px-3 text-center">${r.base}</td>`;
+                            html += `<td class="py-2 px-3 text-center text-blue-600">+${r.admin}</td>`;
+                            html += `<td class="py-2 px-3 text-center font-bold">${r.total}</td>`;
+                            html += '</tr>';
+                        });
+                        html += '</tbody></table>';
+                        resultDiv.innerHTML = html;
+                        resultDiv.classList.remove('hidden');
+
+                        setTimeout(() => location.reload(), 3000);
                     } else {
                         msg.className = 'mb-4 p-3 rounded text-sm bg-red-100 text-red-700';
                         msg.textContent = data.message || 'Ошибка';
