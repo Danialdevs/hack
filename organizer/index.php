@@ -1,9 +1,17 @@
 <?php
-session_start();
-include '../includes/db.php';
+include '../includes/auth.php';
 include '../includes/header.php';
 
 if (isset($_GET['logout'])) {
+    // Удаляем remember-токен из БД
+    if (isset($_SESSION['user_id'])) {
+        $logoutUser = R::load('users', $_SESSION['user_id']);
+        if ($logoutUser->id) {
+            $logoutUser->remember_token = null;
+            R::store($logoutUser);
+        }
+    }
+    setcookie('remember_token', '', time() - 3600, '/');
     session_unset();
     session_destroy();
     header('Location: /organizer/');
@@ -41,6 +49,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['user_name'] = $user->name;
         $_SESSION['user_role'] = $user->role;
         $_SESSION['user_event_id'] = $user->event_id ?? 0;
+
+        // Remember-токен на 30 дней
+        $token = bin2hex(random_bytes(32));
+        $user->remember_token = $token;
+        R::store($user);
+        setcookie('remember_token', $token, time() + 2592000, '/');
+
         header('Location: /organizer');
         exit();
     } else {

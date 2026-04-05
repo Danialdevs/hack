@@ -1,6 +1,5 @@
 <?php
-include '../includes/db.php';
-session_start();
+include '../includes/auth.php';
 $teamId = $_POST['team_id'] ?? null;
 $criteriaId = $_POST['criteria_id'] ?? null;
 $score = $_POST['score'] ?? null;

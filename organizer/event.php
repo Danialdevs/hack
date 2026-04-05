@@ -1,8 +1,6 @@
 <?php
-include '../includes/db.php';
+include '../includes/auth.php';
 include '../includes/header.php';
-
-session_start();
 if (!isset($_SESSION['user_id'])) {
     die("Ошибка: требуется авторизация.");
 }
@@ -327,7 +325,7 @@ if ($_SESSION['user_role'] === 'jury') {
 <div class="mx-4 sm:mx-6 mt-8 mb-8">
     <h3 class="text-xl font-semibold mb-3">Назначить места</h3>
     <div class="bg-white rounded-lg shadow-lg p-6">
-        <p class="text-sm text-gray-500 mb-4">Выберите команды для 1, 2 и 3 места. Все текущие оценки будут заменены.</p>
+        <p class="text-sm text-gray-500 mb-4">Выберите команды для 1, 2 и 3 места. Оценки жюри сохранятся — админ подкорректирует свои баллы так, чтобы итоги были примерно одинаковые, но порядок стал правильным.</p>
         <div id="places-message" class="hidden mb-4 p-3 rounded text-sm"></div>
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
             <div>
@@ -496,7 +494,7 @@ if ($_SESSION['user_role'] === 'jury') {
                     return;
                 }
 
-                if (!confirm('Все текущие оценки будут удалены и заменены. Продолжить?')) return;
+                if (!confirm('Ваши (админские) оценки будут пересчитаны для нужного порядка мест. Оценки жюри останутся. Продолжить?')) return;
 
                 applyBtn.disabled = true;
                 applyBtn.textContent = 'Сохранение...';
