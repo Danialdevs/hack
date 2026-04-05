@@ -6,6 +6,11 @@ $criteriaId = $_POST['criteria_id'] ?? null;
 $score = $_POST['score'] ?? null;
 $jury_id = $_SESSION["user_id"];
 
+// Админ может редактировать оценки любого жюри
+if ($_SESSION['user_role'] === 'admin' && !empty($_POST['jury_id'])) {
+    $jury_id = (int)$_POST['jury_id'];
+}
+
 if ($teamId && $criteriaId !== null && $score !== null) {
     // Get max score from event
     $team = R::load('teams', $teamId);

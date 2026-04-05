@@ -207,15 +207,21 @@ if ($_SESSION['user_role'] === 'jury') {
                 <?php foreach ($teamData as $team):
                     $rowTotal = 0;
                 ?>
-                <tr class="border-b hover:bg-gray-50">
+                <tr class="border-b hover:bg-gray-50" data-admin-team="<?= $team->id ?>" data-admin-jury="<?= $jm->id ?>">
                     <td class="py-2 px-4 font-semibold"><?= htmlspecialchars($team->name) ?></td>
                     <?php foreach ($criteria as $cr):
                         $s = (int) R::getCell('SELECT COALESCE(score,0) FROM scores WHERE team_id = ? AND criteria_id = ? AND jury_id = ?', [$team->id, $cr->id, $jm->id]);
                         $rowTotal += $s;
                     ?>
-                        <td class="py-2 px-4 text-center <?= $s > 0 ? '' : 'text-gray-300' ?>"><?= $s ?></td>
+                        <td class="py-2 px-4 text-center">
+                            <input type="number" min="0" max="<?= $maxScore ?>" value="<?= $s ?>"
+                                   class="admin-score-input border rounded w-16 text-center text-sm"
+                                   data-team-id="<?= $team->id ?>"
+                                   data-criteria-id="<?= $cr->id ?>"
+                                   data-jury-id="<?= $jm->id ?>">
+                        </td>
                     <?php endforeach; ?>
-                    <td class="py-2 px-4 text-center font-bold text-blue-600"><?= $rowTotal ?></td>
+                    <td class="py-2 px-4 text-center font-bold text-blue-600 admin-row-total"><?= $rowTotal ?></td>
                 </tr>
                 <?php endforeach; ?>
             </tbody>
@@ -277,15 +283,21 @@ if ($_SESSION['user_role'] === 'jury') {
                         <?php foreach ($juryForTeam as $jm):
                             $rowTotal = 0;
                         ?>
-                        <tr class="border-b hover:bg-gray-50">
+                        <tr class="border-b hover:bg-gray-50" data-admin-team="<?= $viewTeamId ?>" data-admin-jury="<?= $jm->id ?>">
                             <td class="py-2 px-4 font-semibold"><?= htmlspecialchars($jm->name) ?></td>
                             <?php foreach ($criteria as $cr):
                                 $s = (int) R::getCell('SELECT COALESCE(score,0) FROM scores WHERE team_id = ? AND criteria_id = ? AND jury_id = ?', [$viewTeamId, $cr->id, $jm->id]);
                                 $rowTotal += $s;
                             ?>
-                                <td class="py-2 px-4 text-center <?= $s > 0 ? '' : 'text-gray-300' ?>"><?= $s ?></td>
+                                <td class="py-2 px-4 text-center">
+                                    <input type="number" min="0" max="<?= $maxScore ?>" value="<?= $s ?>"
+                                           class="admin-score-input border rounded w-16 text-center text-sm"
+                                           data-team-id="<?= $viewTeamId ?>"
+                                           data-criteria-id="<?= $cr->id ?>"
+                                           data-jury-id="<?= $jm->id ?>">
+                                </td>
                             <?php endforeach; ?>
-                            <td class="py-2 px-4 text-center font-bold text-blue-600"><?= $rowTotal ?></td>
+                            <td class="py-2 px-4 text-center font-bold text-blue-600 admin-row-total"><?= $rowTotal ?></td>
                         </tr>
                         <?php endforeach; ?>
                         <!-- Average row -->
@@ -418,6 +430,64 @@ if ($_SESSION['user_role'] === 'jury') {
             const el = card.querySelector(`.mobile-total-score[data-team-id="${teamId}"]`);
             if (el) el.textContent = total;
         }
+
+        // Admin: edit jury scores
+        const adminInputs = document.querySelectorAll('.admin-score-input');
+        const adminTimers = {};
+
+        adminInputs.forEach(input => {
+            const statusIndicator = document.createElement('span');
+            statusIndicator.className = 'text-xs ml-1 font-semibold';
+            input.parentNode.appendChild(statusIndicator);
+            input._statusIndicator = statusIndicator;
+
+            input.addEventListener('input', function () {
+                let value = parseInt(this.value);
+                const maxScore = parseInt(this.max) || 10;
+                if (value > maxScore) { this.value = maxScore; value = maxScore; }
+                else if (value < 0) { this.value = 0; value = 0; }
+
+                const teamId = this.dataset.teamId;
+                const criteriaId = this.dataset.criteriaId;
+                const juryId = this.dataset.juryId;
+                const key = `admin-${teamId}-${criteriaId}-${juryId}`;
+
+                // Update row total
+                const row = this.closest('tr');
+                if (row) {
+                    let total = 0;
+                    row.querySelectorAll('.admin-score-input').forEach(inp => {
+                        total += parseInt(inp.value) || 0;
+                    });
+                    const totalCell = row.querySelector('.admin-row-total');
+                    if (totalCell) totalCell.textContent = total;
+                }
+
+                if (adminTimers[key]) clearTimeout(adminTimers[key]);
+                adminTimers[key] = setTimeout(() => {
+                    fetch('save_score.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: `team_id=${teamId}&criteria_id=${criteriaId}&jury_id=${juryId}&score=${this.value}`
+                    })
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            this._statusIndicator.textContent = '✓';
+                            this._statusIndicator.className = 'text-xs ml-1 font-semibold text-green-500';
+                            setTimeout(() => { this._statusIndicator.textContent = ''; }, 2000);
+                        } else {
+                            this._statusIndicator.textContent = '✗';
+                            this._statusIndicator.className = 'text-xs ml-1 font-semibold text-red-500';
+                        }
+                    })
+                    .catch(() => {
+                        this._statusIndicator.textContent = '✗';
+                        this._statusIndicator.className = 'text-xs ml-1 font-semibold text-red-500';
+                    });
+                }, 800);
+            });
+        });
 
         setInterval(function() {
             const eventId = <?= $id ?>;
