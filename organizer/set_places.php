@@ -38,7 +38,6 @@ if (empty($teamIds)) {
     exit;
 }
 
-// Максимум баллов от одного жюри = maxScore * criteriaCount (напр. 10 * 5 = 50)
 $adminMax = $maxScore * $criteriaCount;
 
 // Баллы каждой команды от ДРУГИХ жюри (без админа)
@@ -55,53 +54,78 @@ if ($place1) $placed[] = $place1;
 if ($place2) $placed[] = $place2;
 if ($place3) $placed[] = $place3;
 
-// Реалистичные оценки админа по критериям:
-// 1 место: maxScore     (напр. 10 по каждому критерию)
-// 2 место: maxScore - 1 (напр. 9)
-// 3 место: maxScore - 2 (напр. 8)
-// Остальные: половина   (напр. 5)
-$adminPerCriteria = [];
-if ($place1) $adminPerCriteria[$place1] = $maxScore;
-if ($place2) $adminPerCriteria[$place2] = max($maxScore - 1, 0);
-if ($place3) $adminPerCriteria[$place3] = max($maxScore - 2, 0);
+// Средний балл за критерий для каждого уровня
+// 1 место: ~90-100% от max (напр. 8-10 при max=10)
+// 2 место: ~70-90%  (напр. 7-9)
+// 3 место: ~60-80%  (напр. 6-8)
+// Остальные: ~30-60% (напр. 3-6)
+$ranges = [
+    0 => [max(1, $maxScore - 2), $maxScore],           // 1 место: max-2 .. max
+    1 => [max(1, $maxScore - 3), max(1, $maxScore - 1)], // 2 место: max-3 .. max-1
+    2 => [max(1, $maxScore - 4), max(1, $maxScore - 2)], // 3 место: max-4 .. max-2
+];
+$otherRange = [max(1, (int)floor($maxScore * 0.3)), max(1, (int)floor($maxScore * 0.6))];
 
-$moderateScore = max(1, (int)floor($maxScore / 2));
-
-// Считаем итоги для призёров
-$placedTotals = [];
-foreach ($placed as $tid) {
-    $placedTotals[$tid] = $baseScores[$tid] + $adminPerCriteria[$tid] * $criteriaCount;
+// Генерирует массив случайных баллов по критериям с нужной суммой в диапазоне
+function generateScores($criteriaCount, $minPerCrit, $maxPerCrit, $maxScore) {
+    $scores = [];
+    for ($i = 0; $i < $criteriaCount; $i++) {
+        $scores[] = rand($minPerCrit, $maxPerCrit);
+    }
+    // Ограничиваем [0, maxScore]
+    return array_map(fn($s) => max(0, min($maxScore, $s)), $scores);
 }
 
-// Проверяем порядок между призёрами и корректируем если нужно
-// Идём с конца: 3 место, потом 2, потом 1
+// Генерируем баллы для призёров
+$teamScores = []; // team_id => [score1, score2, ...]
+$teamTotals = [];
+
+foreach ($placed as $idx => $tid) {
+    $range = $ranges[$idx];
+    $teamScores[$tid] = generateScores($criteriaCount, $range[0], $range[1], $maxScore);
+    $teamTotals[$tid] = $baseScores[$tid] + array_sum($teamScores[$tid]);
+}
+
+// Проверяем порядок призёров и корректируем
 $placedCount = count($placed);
-for ($i = $placedCount - 1; $i >= 1; $i--) {
-    $lower = $placed[$i];
+for ($i = 1; $i < $placedCount; $i++) {
     $upper = $placed[$i - 1];
-    // Если верхнее место не выше нижнего — уменьшаем нижнее
-    if ($placedTotals[$lower] >= $placedTotals[$upper]) {
-        // Нужный итог нижнего = итог верхнего - criteriaCount
-        $needTotal = $placedTotals[$upper] - $criteriaCount;
-        $needPerCriteria = max(0, (int)floor(($needTotal - $baseScores[$lower]) / $criteriaCount));
-        $needPerCriteria = min($needPerCriteria, $maxScore);
-        $adminPerCriteria[$lower] = $needPerCriteria;
-        $placedTotals[$lower] = $baseScores[$lower] + $needPerCriteria * $criteriaCount;
+    $lower = $placed[$i];
+    // Если нижнее место >= верхнего — понижаем баллы нижнего
+    $attempts = 0;
+    while ($teamTotals[$lower] >= $teamTotals[$upper] && $attempts < 50) {
+        // Находим самый высокий балл и уменьшаем
+        $maxIdx = array_keys($teamScores[$lower], max($teamScores[$lower]))[0];
+        if ($teamScores[$lower][$maxIdx] > 0) {
+            $teamScores[$lower][$maxIdx]--;
+            $teamTotals[$lower]--;
+        }
+        $attempts++;
     }
 }
 
-// Минимальный итог среди призёров (3 место или последний призёр)
-$lowestPlacedTotal = $placedTotals[$placed[$placedCount - 1]];
+// Минимальный итог среди призёров
+$lowestPlacedTotal = $teamTotals[$placed[$placedCount - 1]];
 
-// Для остальных команд: даём средний балл, но итог должен быть ниже 3 места
+// Генерируем баллы для остальных команд
 foreach ($teams as $team) {
     if (in_array($team->id, $placed)) continue;
 
-    $tryScore = $moderateScore;
-    while ($tryScore > 0 && ($baseScores[$team->id] + $tryScore * $criteriaCount) >= $lowestPlacedTotal) {
-        $tryScore--;
+    $teamScores[$team->id] = generateScores($criteriaCount, $otherRange[0], $otherRange[1], $maxScore);
+    $teamTotals[$team->id] = $baseScores[$team->id] + array_sum($teamScores[$team->id]);
+
+    // Понижаем если обгоняет 3 место
+    $attempts = 0;
+    while ($teamTotals[$team->id] >= $lowestPlacedTotal && $attempts < 100) {
+        $maxIdx = array_keys($teamScores[$team->id], max($teamScores[$team->id]))[0];
+        if ($teamScores[$team->id][$maxIdx] > 0) {
+            $teamScores[$team->id][$maxIdx]--;
+            $teamTotals[$team->id]--;
+        } else {
+            break;
+        }
+        $attempts++;
     }
-    $adminPerCriteria[$team->id] = $tryScore;
 }
 
 // Удаляем старые оценки админа
@@ -111,16 +135,18 @@ R::exec("DELETE FROM scores WHERE team_id IN ($placeholders) AND jury_id = ?", a
 // Записываем оценки админа
 $results = [];
 foreach ($teams as $team) {
-    $scorePerCriteria = $adminPerCriteria[$team->id] ?? 0;
-    $adminTotal = $scorePerCriteria * $criteriaCount;
+    $scores = $teamScores[$team->id];
+    $adminTotal = array_sum($scores);
 
+    $i = 0;
     foreach ($criteria as $cr) {
         $entry = R::dispense('scores');
         $entry->team_id = $team->id;
         $entry->criteria_id = $cr->id;
         $entry->jury_id = $adminId;
-        $entry->score = $scorePerCriteria;
+        $entry->score = $scores[$i];
         R::store($entry);
+        $i++;
     }
 
     $results[] = [
