@@ -514,7 +514,8 @@ if ($_SESSION['user_role'] === 'jury') {
                         msg.classList.remove('hidden');
 
                         // Показываем таблицу результатов
-                        let html = '<table class="min-w-full text-sm bg-white rounded shadow overflow-hidden">';
+                        let html = `<div class="text-xs text-gray-500 mb-2">Макс. баллов от одного жюри: <strong>${data.max_per_jury}</strong> (${<?= $maxScore ?>} × ${<?= count($criteria) ?>} критериев)</div>`;
+                        html += '<table class="min-w-full text-sm bg-white rounded shadow overflow-hidden">';
                         html += '<thead><tr class="bg-gray-800 text-white">';
                         html += '<th class="py-2 px-3 text-left">#</th>';
                         html += '<th class="py-2 px-3 text-left">Команда</th>';
