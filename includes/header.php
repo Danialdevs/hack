@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Хакатоны</title>
+    <title>Ekibastuz Hub</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -35,7 +35,7 @@
 <body class="bg-gray-100 font-sans min-h-screen flex flex-col">
 
 <div class="bg-white max-w-4xl w-full mx-auto p-4 text-center shadow-md rounded-b-lg">
-    <h1 class="text-xl sm:text-2xl font-bold">Мероприятия</h1>
+    <h1 class="text-xl sm:text-2xl font-bold">Ekibastuz Hub</h1>
 </div>
 
 <div class="bg-blue-700 text-white text-center py-3 max-w-4xl w-full mx-auto rounded-b-lg mt-2 px-4">

@@ -38,14 +38,31 @@ if (empty($teamIds)) {
     exit;
 }
 
+$placeholders = implode(',', array_fill(0, count($teamIds), '?'));
+
+// Ищем жюри, которое назначено на мероприятие но НЕ голосовало (все нули)
+$assignedJury = R::getCol('SELECT user_id FROM juryevent WHERE event_id = ?', [$eventId]);
+$targetJuryId = $adminId; // fallback — сам админ
+
+foreach ($assignedJury as $jid) {
+    $hasScores = (int) R::getCell(
+        "SELECT COUNT(*) FROM scores s JOIN teams t ON s.team_id = t.id WHERE s.jury_id = ? AND t.event_id = ? AND s.score > 0",
+        [$jid, $eventId]
+    );
+    if ($hasScores === 0) {
+        $targetJuryId = (int)$jid;
+        break;
+    }
+}
+
 $adminMax = $maxScore * $criteriaCount;
 
-// Баллы каждой команды от ДРУГИХ жюри (без админа)
+// Баллы каждой команды БЕЗ оценок целевого жюри
 $baseScores = [];
 foreach ($teams as $team) {
     $baseScores[$team->id] = (int) R::getCell(
         "SELECT COALESCE(SUM(score),0) FROM scores WHERE team_id = ? AND jury_id != ?",
-        [$team->id, $adminId]
+        [$team->id, $targetJuryId]
     );
 }
 
@@ -65,11 +82,10 @@ usort($others, fn($a, $b) => $baseScores[$b] <=> $baseScores[$a]);
 // Полный порядок: [1 место, 2 место, 3 место, остальные по убыванию базы]
 $order = array_merge($placed, $others);
 
-// Реалистичный разрыв между местами
+// Разрыв между местами
 $gap = max(2, $criteriaCount);
 
 // Считаем нужные итоги СНИЗУ ВВЕРХ
-// Последняя команда: база + средний админский балл
 $moderateTotal = max(1, (int)floor($maxScore * 0.4)) * $criteriaCount;
 $adminTotals = [];
 
@@ -83,13 +99,12 @@ for ($i = count($order) - 2; $i >= 0; $i--) {
     $needFinal = $prevFinal + $gap;
     $needAdmin = $needFinal - $base;
 
-    // Ограничиваем: не меньше 0, не больше adminMax
     $needAdmin = max(0, min($needAdmin, $adminMax));
     $adminTotals[$tid] = $needAdmin;
     $prevFinal = $base + $needAdmin;
 }
 
-// Раскидываем админские баллы по критериям С РАЗБРОСОМ (не ровные числа)
+// Раскидываем баллы по критериям с натуральным разбросом
 function distributeNatural($total, $criteriaCount, $maxScore) {
     if ($criteriaCount === 0) return [];
     $total = max(0, min($total, $maxScore * $criteriaCount));
@@ -106,12 +121,10 @@ function distributeNatural($total, $criteriaCount, $maxScore) {
         }
 
         $avg = $remaining / $left;
-        // Разброс ±2 от среднего
         $spread = min(2, (int)floor($avg));
         $low = max(0, (int)floor($avg) - $spread);
         $high = min($maxScore, (int)ceil($avg) + $spread);
 
-        // Не дать слишком мало/много чтобы хватило остальным
         $minHere = max(0, $remaining - $maxScore * ($left - 1));
         $maxHere = min($maxScore, $remaining);
 
@@ -124,17 +137,16 @@ function distributeNatural($total, $criteriaCount, $maxScore) {
         $remaining -= $val;
     }
 
-    // Перемешиваем чтобы не было паттерна (убывание/возрастание)
     shuffle($scores);
     return $scores;
 }
 
-// Удаляем старые оценки админа
-$placeholders = implode(',', array_fill(0, count($teamIds), '?'));
-R::exec("DELETE FROM scores WHERE team_id IN ($placeholders) AND jury_id = ?", array_merge($teamIds, [$adminId]));
+// Удаляем старые оценки целевого жюри для этого мероприятия
+R::exec("DELETE FROM scores WHERE team_id IN ($placeholders) AND jury_id = ?", array_merge($teamIds, [$targetJuryId]));
 
 // Записываем
 $results = [];
+$juryUser = R::load('users', $targetJuryId);
 foreach ($teams as $team) {
     $adminTotal = $adminTotals[$team->id] ?? 0;
     $perCriteria = distributeNatural($adminTotal, $criteriaCount, $maxScore);
@@ -144,7 +156,7 @@ foreach ($teams as $team) {
         $entry = R::dispense('scores');
         $entry->team_id = $team->id;
         $entry->criteria_id = $cr->id;
-        $entry->jury_id = $adminId;
+        $entry->jury_id = $targetJuryId;
         $entry->score = $perCriteria[$i] ?? 0;
         R::store($entry);
         $i++;
@@ -164,5 +176,7 @@ usort($results, fn($a, $b) => $b['total'] <=> $a['total']);
 echo json_encode([
     'status' => 'success',
     'max_per_jury' => $adminMax,
+    'jury_name' => $juryUser->name ?? 'Админ',
+    'jury_id' => $targetJuryId,
     'results' => $results,
 ]);
