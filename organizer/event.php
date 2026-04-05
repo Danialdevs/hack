@@ -322,6 +322,47 @@ if ($_SESSION['user_role'] === 'jury') {
         <?php endif; ?>
     <?php endif; ?>
 </div>
+
+<!-- Назначить места -->
+<div class="mx-4 sm:mx-6 mt-8 mb-8">
+    <h3 class="text-xl font-semibold mb-3">Назначить места</h3>
+    <div class="bg-white rounded-lg shadow-lg p-6">
+        <p class="text-sm text-gray-500 mb-4">Выберите команды для 1, 2 и 3 места. Все текущие оценки будут заменены.</p>
+        <div id="places-message" class="hidden mb-4 p-3 rounded text-sm"></div>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+            <div>
+                <label class="block text-sm font-semibold text-yellow-600 mb-1">🥇 1 место</label>
+                <select id="place-1" class="w-full p-2 border border-yellow-400 rounded-lg bg-yellow-50">
+                    <option value="">— Не выбрано —</option>
+                    <?php foreach ($teamData as $td): ?>
+                        <option value="<?= $td->id ?>"><?= htmlspecialchars($td->name) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-gray-500 mb-1">🥈 2 место</label>
+                <select id="place-2" class="w-full p-2 border border-gray-400 rounded-lg bg-gray-50">
+                    <option value="">— Не выбрано —</option>
+                    <?php foreach ($teamData as $td): ?>
+                        <option value="<?= $td->id ?>"><?= htmlspecialchars($td->name) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-orange-600 mb-1">🥉 3 место</label>
+                <select id="place-3" class="w-full p-2 border border-orange-400 rounded-lg bg-orange-50">
+                    <option value="">— Не выбрано —</option>
+                    <?php foreach ($teamData as $td): ?>
+                        <option value="<?= $td->id ?>"><?= htmlspecialchars($td->name) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+        </div>
+        <button id="apply-places" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-2 rounded-lg transition">
+            Применить
+        </button>
+    </div>
+</div>
 <?php endif; ?>
 
 <script>
@@ -429,6 +470,65 @@ if ($_SESSION['user_role'] === 'jury') {
             });
             const el = card.querySelector(`.mobile-total-score[data-team-id="${teamId}"]`);
             if (el) el.textContent = total;
+        }
+
+        // Admin: set places
+        const applyBtn = document.getElementById('apply-places');
+        if (applyBtn) {
+            applyBtn.addEventListener('click', function () {
+                const p1 = document.getElementById('place-1').value;
+                const p2 = document.getElementById('place-2').value;
+                const p3 = document.getElementById('place-3').value;
+                const msg = document.getElementById('places-message');
+
+                if (!p1 && !p2 && !p3) {
+                    msg.className = 'mb-4 p-3 rounded text-sm bg-red-100 text-red-700';
+                    msg.textContent = 'Выберите хотя бы одну команду.';
+                    msg.classList.remove('hidden');
+                    return;
+                }
+
+                const selected = [p1, p2, p3].filter(v => v);
+                if (new Set(selected).size !== selected.length) {
+                    msg.className = 'mb-4 p-3 rounded text-sm bg-red-100 text-red-700';
+                    msg.textContent = 'Одна команда не может занимать несколько мест.';
+                    msg.classList.remove('hidden');
+                    return;
+                }
+
+                if (!confirm('Все текущие оценки будут удалены и заменены. Продолжить?')) return;
+
+                applyBtn.disabled = true;
+                applyBtn.textContent = 'Сохранение...';
+
+                fetch('set_places.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: `event_id=<?= $id ?>&place_1=${p1}&place_2=${p2}&place_3=${p3}`
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        msg.className = 'mb-4 p-3 rounded text-sm bg-green-100 text-green-700';
+                        msg.textContent = 'Места назначены! Страница перезагрузится...';
+                        msg.classList.remove('hidden');
+                        setTimeout(() => location.reload(), 1000);
+                    } else {
+                        msg.className = 'mb-4 p-3 rounded text-sm bg-red-100 text-red-700';
+                        msg.textContent = data.message || 'Ошибка';
+                        msg.classList.remove('hidden');
+                        applyBtn.disabled = false;
+                        applyBtn.textContent = 'Применить';
+                    }
+                })
+                .catch(() => {
+                    msg.className = 'mb-4 p-3 rounded text-sm bg-red-100 text-red-700';
+                    msg.textContent = 'Ошибка сети';
+                    msg.classList.remove('hidden');
+                    applyBtn.disabled = false;
+                    applyBtn.textContent = 'Применить';
+                });
+            });
         }
 
         // Admin: edit jury scores
